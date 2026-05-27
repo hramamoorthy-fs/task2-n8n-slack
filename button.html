@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lead Enrichment Dashboard</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f4f7f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .card {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        p {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .btn-start {
+            background-color: #ff6d5a; /* n8n coral color */
+            color: white;
+            margin-right: 10px;
+        }
+        .btn-start:hover {
+            background-color: #e55c49;
+        }
+        .btn-start:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        /* Optional disabled stop button for UI purposes */
+        .btn-stop {
+            background-color: #ececec;
+            color: #888;
+            cursor: not-allowed;
+        }
+        #status {
+            margin-top: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #2e7d32;
+        }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>Lead Enrichment</h2>
+    <p>Trigger your n8n Apollo & Google Sheets automation.</p>
+    
+    <button id="startBtn" class="btn-start" onclick="startWorkflow()">Start Enrichment</button>
+    <button class="btn-stop" title="Stopping mid-execution requires API integration">Stop (Unavailable)</button>
+    
+    <div id="status"></div>
+</div>
+
+<script>
+    // Paste your n8n Webhook URL here!
+    const N8N_WEBHOOK_URL = "https://harikris007.app.n8n.cloud/webhook-test/start-enrichment";
+
+    async function startWorkflow() {
+        const startBtn = document.getElementById('startBtn');
+        const statusText = document.getElementById('status');
+
+        // Update UI to show it's loading
+        startBtn.disabled = true;
+        startBtn.innerText = "Running...";
+        statusText.innerText = "Sending request to n8n...";
+        statusText.style.color = "#007bff";
+
+        try {
+            // Send the POST request to n8n
+            const response = await fetch(N8N_WEBHOOK_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                // You can pass custom data to n8n here if needed
+                body: JSON.stringify({ trigger: "web_button", timestamp: new Date() })
+            });
+
+            if (response.ok) {
+                statusText.innerText = "✅ Workflow started successfully! Check Slack for updates.";
+                statusText.style.color = "#2e7d32";
+            } else {
+                statusText.innerText = "❌ Failed to start workflow. Check n8n logs.";
+                statusText.style.color = "#d32f2f";
+            }
+        } catch (error) {
+            console.error("Error triggering n8n:", error);
+            statusText.innerText = "❌ Network error. Make sure your n8n webhook is active.";
+            statusText.style.color = "#d32f2f";
+        } finally {
+            // Reset button after 3 seconds
+            setTimeout(() => {
+                startBtn.disabled = false;
+                startBtn.innerText = "Start Enrichment";
+            }, 3000);
+        }
+    }
+</script>
+
+</body>
+</html>

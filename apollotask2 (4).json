@@ -1,0 +1,603 @@
+{
+  "name": "apollotask2",
+  "nodes": [
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1tv24xvKp2J-oCC3XYpbVAYQKq69G_39z088vmlUGEtM",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1tv24xvKp2J-oCC3XYpbVAYQKq69G_39z088vmlUGEtM/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1408,
+        112
+      ],
+      "id": "877cbd53-b9c7-47b5-9a04-c4c528d7fa9c",
+      "name": "Read Companies",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "8BRtDaydidiV5n7O",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "for (const item of items) {\n  let url = item.json.website_url || item.json.website || \"\";\n  url = url.trim();\n  if (url) {\n    let domain = url.replace(/^(https?:\\/\\/)?(www\\.)?/, \"\");\n    domain = domain.split('/')[0].split('?')[0];\n    item.json.domain = domain.toLowerCase().trim();\n  } else {\n    item.json.domain = \"\";\n  }\n}\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1200,
+        112
+      ],
+      "id": "01a4a09d-ce6c-4971-8eed-8bcaf864ad4c",
+      "name": "Parse Domain"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apollo.io/api/v1/mixed_people/api_search",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Api-Key",
+              "value": "your_api_key_here"
+            },
+            {
+              "name": "Cache-Control",
+              "value": "no-cache"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"q_organization_domains\": \"{{ $json.domain }}\",\n  \"page\": 1,\n  \"per_page\": 1\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -1008,
+        112
+      ],
+      "id": "3993bd05-6b54-4ea7-9d68-24b3036b0f13",
+      "name": "Apollo Search"
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = [];\nfor (const item of items) {\n  const contacts = item.json.people || item.json.contacts || [];\n  for (const contact of contacts) {\n    results.push({\n      json: {\n        contact_id: contact.id,\n        first_name: contact.first_name || \"\",\n        last_name: contact.last_name || \"\",\n        designation: contact.title || contact.designation || \"\",\n        linkedin_url: contact.linkedin_url || \"\",\n        company_name: contact.organization?.name || \"\",\n        website: contact.organization?.primary_domain || contact.organization?.domain || \"\"\n      }\n    });\n  }\n}\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -800,
+        112
+      ],
+      "id": "77651ae2-c0ee-46fc-be71-a9e6b30b2029",
+      "name": "Extract Contacts"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "158N8yurn3mQk_vrkBGaq8QdSmx5ece7WM7SH2jmTI74",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/158N8yurn3mQk_vrkBGaq8QdSmx5ece7WM7SH2jmTI74/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -608,
+        112
+      ],
+      "id": "69804699-4259-4259-8b1e-aaee6d1da8fb",
+      "name": "Read All Leads",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "8BRtDaydidiV5n7O",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allRows = $input.all();\nconst extractedContacts = $items(\"Extract Contacts\");\nconst results = [];\n\nfor (const contactItem of extractedContacts) {\n  const contact = contactItem.json;\n  \n  const existingRow = allRows.find(row => {\n    const sheetFirst = String(row.json.first_name || row.json[\"first_name \"] || \"\").toLowerCase().trim();\n    const sheetTitle = String(row.json.designation || row.json[\"designation \"] || \"\").toLowerCase().trim();\n    \n    const contactFirst = String(contact.first_name || \"\").toLowerCase().trim();\n    const contactTitle = String(contact.designation || \"\").toLowerCase().trim();\n    \n    if (sheetFirst && contactFirst && sheetFirst === contactFirst && sheetTitle && contactTitle && sheetTitle === contactTitle) {\n        return true;\n    }\n\n    const sheetLinkedIn = String(row.json.linkedin_url || row.json[\"linkedin_url \"] || \"\").toLowerCase().replace(/^https?:\\/\\/(www\\.)?/, '');\n    const contactLinkedIn = String(contact.linkedin_url || \"\").toLowerCase().replace(/^https?:\\/\\/(www\\.)?/, '');\n    \n    if (sheetLinkedIn && contactLinkedIn && sheetLinkedIn === contactLinkedIn) {\n        return true;\n    }\n    \n    return false;\n  });\n\n  if (existingRow) {\n    results.push({\n      json: {\n        ...contact,\n        found: \"yes\",\n        status: \"Duplicate (Already Exists)\"\n      }\n    });\n  } else {\n    results.push({\n      json: {\n        ...contact,\n        found: \"no\"\n      }\n    });\n  }\n}\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        112
+      ],
+      "id": "6f859e1f-9bd6-4c60-b68c-7a0147a3bb87",
+      "name": "Check Lead Exists"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.found}}",
+              "value2": "yes"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -208,
+        112
+      ],
+      "id": "04251787-1dc3-4a02-9132-8fe1363c9c99",
+      "name": "Is Existing Lead?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nlet combinedText = \"🚨 *Duplicate Leads Found (Already Exists)* 🚨\\n\\n\";\n\nfor (const item of items) {\n  const data = item.json;\n  combinedText += `*Name:* ${data.first_name || \"\"} ${data.last_name || \"\"}\\n`;\n  combinedText += `*Company:* ${data.company_name || \"\"}\\n`;\n  combinedText += `*Designation:* ${data.designation || \"\"}\\n`;\n  combinedText += `*Email:* ${data.email || \"N/A\"}\\n`;\n  combinedText += `*LinkedIn URL:* ${data.linkedin_url || \"N/A\"}\\n`;\n  combinedText += `--------------------------------------\\n`; // Adds a clean divider between leads\n}\n\n// Return a single item so Slack only fires once\nreturn [{\n  json: {\n    slack_message: combinedText\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "8893d151-19d7-445c-abdc-32cb91e5c547",
+      "name": "Set Status - Duplicate"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apollo.io/api/v1/people/match",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Api-Key",
+              "value": "your_api_key_here"
+            },
+            {
+              "name": "Cache-Control",
+              "value": "no-cache"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"id\": \"{{$json.contact_id}}\",\n  \"reveal_personal_emails\": true\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        0,
+        208
+      ],
+      "id": "3944d82f-10ef-4c66-bb9b-490a918edb8a",
+      "name": "Apollo Enrichment"
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = [];\nfor (const item of items) {\n  const person = item.json.person || item.json.people?.[0] || {};\n  results.push({\n    json: {\n      company_name: person.organization?.name || item.json.company_name || \"\",\n      website: person.organization?.primary_domain || person.organization?.domain || item.json.website || \"\",\n      first_name: person.first_name || item.json.first_name || \"\",\n      last_name: person.last_name || item.json.last_name || \"\",\n      designation: person.title || person.job_title || item.json.designation || \"\",\n      email: person.email || \"\",\n      linkedin_url: person.linkedin_url || item.json.linkedin_url || \"\",\n      employee_count: person.organization?.estimated_num_employees || person.organization?.employee_count || 0,\n      industry: person.organization?.industry || \"\"\n    }\n  });\n}\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        208
+      ],
+      "id": "84f94b8f-487d-41f3-ba4f-70a79c306e3e",
+      "name": "Parse Enrichment"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.email}}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        400,
+        208
+      ],
+      "id": "99ee1b64-8a53-45bc-8fe1-ec4951a3e9de",
+      "name": "Has Email?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.mailmeteor.com/v1/emails/find",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_MAILMETEOR_API_KEY_HERE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"first_name\": \"{{ $json.first_name }}\",\n  \"last_name\": \"{{ $json.last_name }}\",\n  \"domain\": \"{{ $json.website }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        608,
+        368
+      ],
+      "id": "0f37f5b1-087a-4b02-9af5-0a24cbddb2b5",
+      "name": "Mailmeteor Search"
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = [];\nfor (const item of items) {\n  // Try to find the email in the Mailmeteor API response body\n  const foundEmail = item.json.email || item.json.data?.email || item.json.result?.email || \"\";\n  \n  results.push({\n    json: {\n      company_name: item.json.company_name || \"\",\n      website: item.json.website || \"\",\n      first_name: item.json.first_name || \"\",\n      last_name: item.json.last_name || \"\",\n      designation: item.json.designation || \"\",\n      linkedin_url: item.json.linkedin_url || \"\",\n      employee_count: item.json.employee_count || 0,\n      industry: item.json.industry || \"\",\n      email: foundEmail || \"Not Found (Mailmeteor)\"\n    }\n  });\n}\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        368
+      ],
+      "id": "7b9771ec-954e-4d93-9e79-90971c1b6115",
+      "name": "Parse Mailmeteor"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "158N8yurn3mQk_vrkBGaq8QdSmx5ece7WM7SH2jmTI74",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/158N8yurn3mQk_vrkBGaq8QdSmx5ece7WM7SH2jmTI74/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "company_name ": "={{ $json.company_name }}",
+            "website ": "={{ $json.website }}",
+            "first_name ": "={{ $json.first_name }}",
+            "last_name ": "={{ $json.last_name }}",
+            "designation ": "={{ $json.designation }}",
+            "email ": "={{ $json.email }}",
+            "linkedin_url ": "={{ $json.linkedin_url }}",
+            "employee_count ": "={{ $json.employee_count }}",
+            "industry ": "={{ $json.industry }}"
+          },
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1008,
+        208
+      ],
+      "id": "2fe5e012-b48f-480d-890a-f52c5dc51c48",
+      "name": "Append New Lead",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "8BRtDaydidiV5n7O",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nlet combinedText = \"🎉 *New Leads Added Successfully* 🎉\\n\\n\";\n\nfor (const item of items) {\n  const data = item.json;\n  const first = data.first_name || data[\"first_name \"] || \"\";\n  const last = data.last_name || data[\"last_name \"] || \"\";\n  const company = data.company_name || data[\"company_name \"] || \"\";\n  const designation = data.designation || data[\"designation \"] || \"\";\n  const email = data.email || data[\"email \"] || \"N/A\";\n  const linkedin = data.linkedin_url || data[\"linkedin_url \"] || \"N/A\";\n\n  combinedText += `*Name:* ${first} ${last}\\n`;\n  combinedText += `*Company:* ${company}\\n`;\n  combinedText += `*Designation:* ${designation}\\n`;\n  combinedText += `*Email:* ${email}\\n`;\n  combinedText += `*LinkedIn URL:* ${linkedin}\\n`;\n  combinedText += `--------------------------------------\\n`;\n}\n\nreturn [{\n  json: {\n    slack_message: combinedText\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        208
+      ],
+      "id": "149460c7-dcea-483c-b085-afd19520069d",
+      "name": "Set Status - Added"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "your_slack_webhook_url_here",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "={{ $json.slack_message }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1408,
+        112
+      ],
+      "id": "31289b07-a197-48f1-b607-f1ced8b1be4c",
+      "name": "Slack Notification"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "start-enrichment",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1600,
+        112
+      ],
+      "id": "b539ee22-09f2-4e45-85c9-69d2e439c043",
+      "name": "Webhook",
+      "webhookId": "bad784ef-d9a1-4d74-bb1a-3a10adbe656d"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Read Companies": {
+      "main": [
+        [
+          {
+            "node": "Parse Domain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Domain": {
+      "main": [
+        [
+          {
+            "node": "Apollo Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apollo Search": {
+      "main": [
+        [
+          {
+            "node": "Extract Contacts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Contacts": {
+      "main": [
+        [
+          {
+            "node": "Read All Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read All Leads": {
+      "main": [
+        [
+          {
+            "node": "Check Lead Exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Lead Exists": {
+      "main": [
+        [
+          {
+            "node": "Is Existing Lead?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Existing Lead?": {
+      "main": [
+        [
+          {
+            "node": "Set Status - Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Apollo Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Status - Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Slack Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apollo Enrichment": {
+      "main": [
+        [
+          {
+            "node": "Parse Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Enrichment": {
+      "main": [
+        [
+          {
+            "node": "Has Email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Email?": {
+      "main": [
+        [
+          {
+            "node": "Append New Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mailmeteor Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mailmeteor Search": {
+      "main": [
+        [
+          {
+            "node": "Parse Mailmeteor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Mailmeteor": {
+      "main": [
+        [
+          {
+            "node": "Append New Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append New Lead": {
+      "main": [
+        [
+          {
+            "node": "Set Status - Added",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Status - Added": {
+      "main": [
+        [
+          {
+            "node": "Slack Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Read Companies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "4d36f7aa-d2ae-494d-80b7-307e0c20eeeb",
+  "meta": {
+    "instanceId": "ca61ae1c9ea8da1c1362be831a843e9caa0c45fbf5633cba9de32f074d795828"
+  },
+  "id": "VeAzVzbHvn9YR7JG",
+  "tags": []
+}
